@@ -1,0 +1,79 @@
+Tiene un cluster, dentro de el hay uno o mas broker
+Tiene la fuentes o recursos, ademas tiene un cluster de conexion y si no sabe que tipo de cluster
+
+
+Palabras claves:
+Sources: Son las fuentes o Recursos corporativos, seria el dato de entreda el cual sufrira la transformacion y procesamiento de datos.
+Connect Cluster Workers: Es el intermediario/comunicador/conexion entre lo exterior (sources y Sinks) y el Kafka cluster
+Kafka Cluster: Es donde estan los broker, puede tener uno o mas broker 
+Streams App: Es donde se procesa los datos y se hace las transformacion en base a los broker
+Sinks: Es el que consume la data transformada o procesada.
+
+
+FLUJO
+
+1) RECURSOS CORPORATIVOS                       				(SOURCES  -->  CONNECT CLUSTER WORKERS)
+2) CONECCION CON EL CLUSTER                    				(CONNECT CLUSTER WORKERS  -->  KAFKA CLUSTER)
+3) LOS DATOS ESTAN EN KAFKA Y SE LOS PROCESA   				(KAFKA CLUSTER  -->  STREAMS APP n) BIDIRECCIONAL
+4) UTILIZAR EL CLUSTER DE CONECCION PARA ENVIAR LOS DATOS PROCESADOS         (KAFKA CLUSTER  -->  CONNECT CLUSTER WORKERS)
+5) EXPONER LA TRANSFORMACION DE DATOS, EJEMPLO ELASTICSEARCH 		(CONNECT CLUSTER WORKERS  -->  SINKS)
+
+Historia.
+
+Kafka Streams se introdujo esta api/library a partir de Kafka 0.10 in 2016.
+Es la única biblioteca en el momento de escribir este artículo que puede aprovechar las nuevas capacidades de exactamente 
+una vez de Kafka 0.11
+Es un competidor serio para otros frameworks de procesamiento como Apache Spark, Flink o NiFi
+Es un nuevo framework/library promensas a cambios en el futuro.
+
+Es el curso se va hacer mas incapie/especializar en los Kafka Cluster, broker, Streams. Todo este conjunto se encarga de la 
+data transformation and processing
+
+
+Kafka Streams Application
+terminologia
+#) Un stream es una secuencia de registros de datos inmutables, que están completamente ordenados, se pueden reproducir 
+   y son tolerantes a fallas (piense en un tema de Kafka como un paralelo)
+#) Un stream processor es un nodo en la topología del procesador (grafo). 
+   Transforma al stream entrante, registro por registro, y puede crear una nueva stream a partir de ella.
+#) La topologia es un grafo od procesadores encadenados por streams (conectados por streams)
+#) Un Source Processor es un procesador especial que toma los datos directamente desde un kafka topic.
+   No tiene predecesores en la topología y no transforma los datos.
+#) Un Sink processor es un procesador que no tiene hijos, envia el dato del stream directamente a kafa topic
+
+WRITING A TOPOLOGY
+
+Aprovecharemos un DSL de alto nivel: (se ve en el curso)
+	 Es mas simple
+	 Tiene las mayoria de tareas y operaciones para realizar las tereas de transformacion de data
+	 Contiene muchos ayudantes de sistasis para que nuestra vida sea muy facil
+	 Nos mantendrá ocupadas por un tiempo
+	 Es descriptivo
+Hay tambien un API de procesador de bajo nivel (no se ve en el curso)
+	Es imperativo
+	Se usa para implementar logica mas compleja 
+	
+WORD_COUNT_STREAMS_APP_TOPOLOGY
+Escribir un topologua usando DSL de alto nivel en nuestra aplicacion
+Recordar que la data en Kafka Streams es <key, value>
+	1) Stream from kafka 						<null, "Kafka Kafka Streams">
+	2) MapValues lowercase						<null, "kafka kafka streams">
+	3) FlatMapValues split by space                             	<null, "kafka">, <null, "kafka">, <null, "streams">
+	4) SelectKey to apply a key					<"kafka", "kafka">, <"kafka", "kafka">, <"streams", "streams">
+	5) GroupByKey before aggregation				(<"kafka", "kafka">, <"kafka", "kafka">), (<"streams", "streams">)
+	6) Count occurrences in each group				<"kafka", 2>, <"streams", 1>
+	7) To in order to write the results back to kafka  		data point is written to kafka topic
+	
+	
+	
+	kafka-topics --zookeeper zookeeper:2181 --create --replication-factor 1 --partitions 3 --topic config-topic
+
+kafka-configs --zookeeper zookeeper:2181 --entity-type topics --entity-name config-topic --describe
+
+kafka-configs --zookeeper zookeeper:2181 --entity-type topics --entity-name config-topic --add-config
+
+kafka-configs --zookeeper zookeeper:2181 --entity-type topics --entity-name config-topic --add-config min.insync.replicas=2 --alter
+
+kafka-configs --zookeeper zookeeper:2181 --entity-type topics --entity-name config-topic --delete-config min.insync.replicas --alter
+
+

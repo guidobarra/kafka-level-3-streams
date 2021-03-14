@@ -1,0 +1,21 @@
+Apache KAfkA Streams
+
+Que es KAFKA Streams?
+
+Es una biblioteca de transformacion y procesamiento de datos
+No es una biblioteca externa creada por terceros
+
+#)Es una standard java application
+#)No necesita crear cluster separados (como spark)
+#)Es altamente escalable, elastico y tolerante a fallos
+#)Exactamente una vez Capacidades (Exactly once Capabilities) 
+#)Procesa registro uno a la vez, por lo que no hay lotes
+
+Deseño de arquitectura.
+
+		
+Se puede crear aplicacion para:
+*)transformar datos
+*)Enriquesimiento de los datos
+*)Deteccion de fraudes
+*)Monitoreo y alertas
