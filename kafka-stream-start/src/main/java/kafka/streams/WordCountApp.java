@@ -22,7 +22,7 @@ Recordar que la data en Kafka Streams es <key, value>
 	6) Count occurrences in each group			<"kafka", 2>, <"streams", 1>
 	7) To in order to write the results back to kafka  		data point is written to kafka topic
 */
-public class StreamsStarterApp {
+public class WordCountApp {
 
     private static final String TOPIC_INPUT = "word-count-input";
 
@@ -37,25 +37,6 @@ public class StreamsStarterApp {
     private static final String COUNTS = "Counts";
 
     private static final String REGEX_SPLIT = "\\W+";
-
-    public static Topology createTopology(){
-        StreamsBuilder builder = new StreamsBuilder();
-
-        // 1 - stream from Kafka
-        KStream<String, String> textLines = builder.stream(TOPIC_INPUT);
-
-        KTable<String, Long> wordCounts = textLines
-                .mapValues((ValueMapper<String, String>) String::toLowerCase)//2) MapValues lowercase
-                .flatMapValues(lowerCaseTextLine -> Arrays.asList(lowerCaseTextLine.split(REGEX_SPLIT)))//3) FlatMapValues split by space
-                .selectKey((key, value) -> value)//4) SelectKey to apply a key
-                .groupByKey()//5) GroupByKey before aggregation
-                .count(Materialized.as(COUNTS));//6) Count occurrences in each group
-
-        // 7 - to in order to write the results back to kafka
-        wordCounts.toStream().to(TOPIC_OUTPUT, Produced.with(Serdes.String(), Serdes.Long()));
-
-        return builder.build();
-    }
 
     public static void main(String[] args) {
         Properties config = new Properties();
@@ -82,5 +63,24 @@ public class StreamsStarterApp {
             }
         }
 
+    }
+
+    public static Topology createTopology(){
+        StreamsBuilder builder = new StreamsBuilder();
+
+        // 1 - stream from Kafka
+        KStream<String, String> textLines = builder.stream(TOPIC_INPUT);
+
+        KTable<String, Long> wordCounts = textLines
+                .mapValues((ValueMapper<String, String>) String::toLowerCase)//2) MapValues lowercase
+                .flatMapValues(lowerCaseTextLine -> Arrays.asList(lowerCaseTextLine.split(REGEX_SPLIT)))//3) FlatMapValues split by space
+                .selectKey((key, value) -> value)//4) SelectKey to apply a key
+                .groupByKey()//5) GroupByKey before aggregation
+                .count(Materialized.as(COUNTS));//6) Count occurrences in each group
+
+        // 7 - to in order to write the results back to kafka
+        wordCounts.toStream().to(TOPIC_OUTPUT, Produced.with(Serdes.String(), Serdes.Long()));
+
+        return builder.build();
     }
 }
