@@ -64,9 +64,244 @@ Recordar que la data en Kafka Streams es <key, value>
 	6) Count occurrences in each group				<"kafka", 2>, <"streams", 1>
 	7) To in order to write the results back to kafka  		data point is written to kafka topic
 	
+KSTREAMS AND KTABLES
 	
+KStreams
+	Inserta todo
+	Similiar a los LOGS
+	Infinito
+	Flujos de datos ilimitados
 	
-	kafka-topics --zookeeper zookeeper:2181 --create --replication-factor 1 --partitions 3 --topic config-topic
+Ktables:
+	no inserta, sino que aumenta los valores no nulos
+	Similar a una tabla
+	Elimina en valores nulos
+	Parallel with log compacted topics
+
+WHEN TO USE KSTREAM VS KTABLE?
+	KStream leer de un topic que no está compactado
+	KTable leer de un topic que es log-compacted
+	
+	KStream si los datos nuevos son información parcial / transaccional
+	KTable más si necesita una estructura que sea como una tabla de base de datos donde cada actualización es autosuficiente
+	
+
+KAFKA
+STATELESS VS STATEFUL OPERATIONS
+Stateles: Significa que el resultado de un transformacion solo depende de el punto de data de tu proceso
+Ejemplo: una multiplicacion de un valor por 2, es un operacion stateless porque no necesita mamoria del pasado(informacion de estados anteriores) para lograr el resultado
+1 => 2
+300 => 600
+
+Stateful: significa que el resultado de un transformacion tambien depende de una informacion externa que los estados. (depende de algun estado anterior)
+Ejemplo: una operacion de recuento es stateful porque tu aplicacion necesita conocer que sucedio antes para saber que viene despues. 
+(necesita conocer informacion de algun estado anterior para saber el resultado del estado actual)
+hello -> 1
+hello -> 2
+guba -> 1
+hello -> 3
+
+MAPVALUES VS MAP
+Toma un registros y produce un registro
+MapValues
+es solo para valores (afecta solo a los valores)
+no cambia las claves
+no activa una repartición
+Para KStreams and KTables
+
+Map
+afecta a ambos tanto claves como valores
+activa una repartición
+Solo para KStreams.
+
+ejemplo de mapValues
+uppercased = stream.mapValues(value -> value.toUpperCase())
+(alice, cow)   --------->   (alice, COW)
+
+Filter and FilterNot
+toma un registro y produce 0 o 1 registro
+Filter:
+no cambia las claves o valores
+no activa una repartición
+Para KStreams and KTables 
+
+FilterNot
+Inverso del filtro
+
+KStream<String, Long> onlyPositives = stream.filter((key, value) -> value > 0);
+(alice, 6)  ----------------->              (alice, 5)
+(alice, -2) ----------------->              registro eliminado 
+
+FlatMapValues and FlatMap
+Toma una registro y produce 0, 1 o mas registro
+FlatMapValues
+no cambia las claves
+no activa una reparticion
+Solo para KStreams
+
+FlatMap
+Cambia las claves
+activa una reparticion
+solo para Kstream 
+
+ejemplo
+words = sentences.flatMapValues(value -> Arrars.asList(value.split("\\s+")));
+
+		       |--------> (alice, alice)
+(alice, alice is nice) |--------> (alice, is)
+		       |--------> (alice, nice)
+
+Branch
+Branch (split) un KStream basado en uno o más predicados
+Predicados son evaluados en orden, si no coincide, los registro son eliminados
+El resultado es multiples KStreams
+
+ejemplo:
+KStream<String, Long>[] branches = stream.branch(
+	(key, value) -> value > 100,
+	(key, value) -> value > 10,
+	(key, value) -> value > 0,
+);
+
+Data Streams            branch[0] (>100)          branch[0] (>100)          branch[0] (>100)
+(alice, 1)		(alice, 200)		    (alice, 20)               (alice, 1) 
+(alice, 20)                                       (alice, 30)               (alice, 9)
+(alice, 200)
+(alice, 9)
+(alice, -10)
+(alice, 30)
+
+
+                                                                            Dropped record
+                                                                            (alice, -10)
+
+SelectKey
+asigna una new clave a un registro
+marca la data para reparticionamiento
+
+La mejor práctica para aislar esa transformación para saber exactamente dónde ocurre la partición
+
+ejemplo:
+rekeyed = stream.selectKey((key, value) -> key.substring(0, 1));
+(alice, paris)    ------------->  (a, paris)
+(bob, new york)   ------------->  (b, new york)
+
+
+READING FROM KAFKA
+KStream:
+KStream<String, Long> wordCounts = builder.stream(
+	Serdes.String(), /*key*/
+	Serdes.Long(),   /*topic*/
+	"word-counts-input-topic" /*topic*/
+);
+
+KTable:
+KTable<String, Long> wordCounts = builder.table(
+	Serdes.String(), /*key*/
+	Serdes.Long(),   /*topic*/
+	"word-counts-input-topic" /*topic*/
+);
+
+GlobalKTable:
+KTable<String, Long> wordCounts = builder.globalTable(
+	Serdes.String(), /*key*/
+	Serdes.Long(),   /*topic*/
+	"word-counts-input-topic" /*topic*/
+);
+
+WRITING TO KAFKA
+Puede escribir algun KStream o KTable de vuelta a kafka
+si escribir un KTable hacia kafka, Piense en crear un tema de registro compactado.
+
+To: Terminal operation- escribir los registros en el topic
+stream.to("my-stream-output-topic")
+table.to("my-table-output-topic")
+
+Through: escribir un topic y obtener un stream/table desde el topic
+KStream<String, Long> newStream = stream.through("user-clicks-topic")
+KTable<String, Long> newTable = table.through("my-table-output-topic")
+
+STREAMS MARKED FOR RE-PARTITIONS
+De modo que tan pronto como una operacion pueda cambiar la clave de su stream o su table, 
+El stream sera marcado para repaticion
+map
+FlatMap
+SelectKey
+Solo debe usar la API si necesita cambiar una clave, De lo contrario, deberias utilizar las
+sus contrapartes:
+MapValues
+FlatMapValues
+La repartición se realiza sin problemas detrás de escena, pero incurrirá en un costo de rendimiento
+(lee y escribe a kafka)
+Solo cambie su clave cuando sea necesario y si no tiene que complacerlo
+
+REFRESHER ON LOG COMPACTION
+Log Compaction puede ser una gran mejora en rendimiento cuando trata/usa KTables 
+porque eventualmente los registros en kafka son descartados o eliminados
+
+Solo importa la actualizacion con el inserto. Por lo tanto, siempre que haya una nueva clave
+que reemplace una clave anterior, pueda descartar la clave anterior. Entonces eso significa que
+cuando esto se haga su aplicacion necesita leer menos.
+
+Esto significa menos lecturas para llegar al estado final (menos tiempo para recuperarse)
+Log Compaction tiene que ser habilitada por usted en los topics que creo (source or sink topics)
+
+LOG CLEANUP POLICY: COMPACT
+La compactación de registros garantiza que su registro contenga al menos el último valor
+ conocido para una clave específica dentro de una partición
+Muy util si nosotros justo requerimos un SNAPSHOT (instantanea) en lugar de una historial 
+completo (como para una tabla de datos en una base de datos)
+La idea es que solo desee mantener las ultimas actualizaciones de una clave un su LOG
+
+
+Log Compaction:Example
+Nuestro topic es: employee-salary
+Queremos mantener el salario más reciente para nuestros empleados.
+
+LOG COMPACTION GUARANTEES:
+Algun consumer que esta leyendo desde la  cabeza de un log todavia vera todos los mensajes enviados en topic
+Orden del mensaje se mantiene, log compaction solo remueve algunos mensajes, pero no los reordena
+Los offsets de un mensaje son inmutables (estos nunca cambian). Los offsets solo se omiten si falta un mensaje
+Los registros eliminados todavia podran ser visto por los consumers por un periodo de 
+delete.retention.ms (default es 24 horas)
+
+LOG COMPACTION MYTH BUSTING
+Esto no le impide enviar datos duplicados a kafka
+	De-duplication se realiza después de que se confirma un segmento
+	Tus consumers todavia leeran desde la cabeza tan pronto como lleguen los datos
+Esto no le impide enviar leer datos duplicados a kafka
+	Algún punto como arriba
+Log compaction puede fallar de vez en cuando
+	Es una optimización y el hilo de compactación podría fallar.
+	Asegúrese de asignarle suficiente memoria y de que se active
+
+KStream AND KTable DUALITY
+Stream como Table: Un stream puede ser considerado un changelog de un table, donde cada registro
+de dato en el stream captura un cambio de estado de la tabla
+
+Table como Stream: Un table puede ser considerado un snapshot, un point de tiempo, de el ultimo
+valor de cada clave en un stream (un stream es registro de dato son pares clave-valor)
+
+TRANSFORMING A KTABLE TO A KSTREAM
+A veces es útil transformar una KTable a una KStream para mantener un registro de cambios de todos los cambios en la KTable.
+(ver la última conferencia sobre la dualidad KStream / KTable)
+
+KTable<byte[], String> table = ......
+KStream<byte[], String> stream = table.toStream();
+
+TRANSFORMING A KSTREAM TO A KTABLE 
+DOS Formas:
+
+Encadenar un groupByKey() y un paso de agregación (count, aggregate, reduce)
+KTable<String, Long> table = userAndColours.groupByKey().count();
+
+Escribir en kafka y leerlo como KTable
+stream.to("intermediary-topic");
+KTable<String, String> table = builder.table("intermediary-topic");
+	
+
+
+kafka-topics --zookeeper zookeeper:2181 --create --replication-factor 1 --partitions 3 --topic config-topic
 
 kafka-configs --zookeeper zookeeper:2181 --entity-type topics --entity-name config-topic --describe
 

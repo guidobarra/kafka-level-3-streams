@@ -19,3 +19,25 @@ Se puede crear aplicacion para:
 *)Enriquesimiento de los datos
 *)Deteccion de fraudes
 *)Monitoreo y alertas
+
+INTERNAL TOPIC
+Ejecutar un kafka streams puede eventualmente crear un topics intermedio interno
+Dos Topics:
+	Repartitioning topics: en caso de que comience a transformar la key de su stream,
+	se producirá un reparticionamiento en algún procesador
+	Changelog topic: en caso de que realice agregaciones, Kafka Stream guardará datos
+	compactados en estos topics
+Internal topics:
+	Son administrados por kafka streams
+	Son usados por kafka streams para guardar/almacenar el estado y re-partition data
+	Están precedidas por el parámetro application.id
+	NUNCA DEBERAN SER ELIMINADOS, ALTERADOS O PUBLICADOS EN. SON INTERNOS
+
+ESCALABILIDAD
+En el ejemplo de word-count, los topics de input y output tiene 3 particiones cada uno.
+Si levantamos 2 o 3 aplicaciones java, kakfa se encarga de administrar las app java
+con las particiones de los topics, en el caso de que un app de java se caiga/falla, kafka 
+se encarga de pasar todo el trafico o mejor dicho las particiones de los topics a la otras
+apps de java que esta UP. Con esto tenemos mayor escalabilidad, poder tener varias particiones
+y apps java para cada una, con el objetivo de paralelizar los procesos y mejorar el rendimiento
+todo esto gracias a kafka streams que se encagar de admistrar/connectar los topics y app
